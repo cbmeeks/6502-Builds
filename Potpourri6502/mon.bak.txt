@@ -1,0 +1,294 @@
+;*******************************************************************************
+;===============================================================================
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+;                               Potpourri6502 SBC 
+;                                  by Cecil Meeks
+;
+;                            http://potpourri6502.com
+;
+;               Design based off 6502 "Primer" computer by Garth Wilson
+;               http://wilsonminesco.com/6502primer/potpourri.html
+;               
+;               Assembler / Linker of choice:
+;
+;               Assembler
+;               https://cc65.github.io/doc/ca65.html
+;
+;               Linker
+;               https://cc65.github.io/doc/ld65.html
+;
+;               EhBASIC located at $B000
+;               EhBASIC created by Lee Davison
+;
+;               "min_mon.asm" partially taken from Jeff Tranter
+;
+;-------------------------------------------------------------------------------
+;
+;               RAM:    0000-3FFF (using half of a 62256 32Kx8 SRAM)
+;               I/O:    4000-7FFF (on-board 6522 VIA is at $6000-$600F)
+;               ROM:    8000-FFFF (using all 32KB of EPROM or EEPROM)
+;
+;-------------------------------------------------------------------------------
+;===============================================================================
+;*******************************************************************************
+
+        .debuginfo  +
+        .setcpu     "65C02"
+
+VIA     :=      $6000
+PB      :=      VIA
+PA      :=      VIA + 1
+DDRB    :=      VIA + 2
+DDRA    :=      VIA + 3
+
+ESC     =       $1B             ; Escape character
+CR      =       $0D             ; Return character
+LF      =       $0A             ; Line feed character
+
+IN      =       $0200           ; Buffer used by GetLine. 
+                                ; From $0200 through $027F (shared with Woz Mon)
+                                ; Defined in wozmon.asm
+
+LCDpl   =       $DE		; temporary integer low byte
+LCDPh   =       LCDpl + 1	; temporary integer high byte
+
+
+.include "EhBASIC.asm"
+.include "lcd.asm"
+.include "pckybd.asm"
+.include "utils.asm"
+
+;-------------------------------------------------------------------------------
+;       Main RESET Vector (ROM Startup)
+;-------------------------------------------------------------------------------
+        .segment "CODE"
+        .org $8000
+RES_vec:
+;	CLD				; clear decimal mode
+;	LDX	#$FF			; empty stack
+;	TXS				; set the stack
+
+        JSR     INITS
+
+MAIN:
+IRQ_vec:
+NMI_vec:
+        JMP     MAIN
+
+
+;-------------------------------------------------------------------------------
+;       System Initializations
+;-------------------------------------------------------------------------------
+INITS:
+;       Set on-board VIA data direction registers
+        LDA     #$FF
+        STA     DDRA            ; PORT A is all output
+        STA     DDRB            ; PORT B is all output
+
+        JSR     LCD_INIT        ; Initialize the LCD module
+
+        LDX     #<LINE1         ; Print the 4 line startup message
+        LDY     #>LINE1
+        JSR     PrintString
+
+        LDX     #<LINE3
+        LDY     #>LINE3
+        JSR     PrintString
+
+        LDA     #$40
+        JSR     LCD_SET_DRAM_ADDRESS
+
+        LDX     #<LINE2
+        LDY     #>LINE2
+        JSR     PrintString
+
+        LDX     #<LINE4
+        LDY     #>LINE4
+        JSR     PrintString
+
+        JMP     MAIN
+
+
+;-------------------------------------------------------------------------------
+;       Setup EhBASIC
+;-------------------------------------------------------------------------------
+        ; set up vectors and interrupt code, copy them to page 2
+	LDY	#END_CODE - LAB_vec	; set index/count
+
+LAB_stlp:
+	LDA	LAB_vec - 1, Y		; get byte from interrupt code
+	STA	VEC_IN - 1, Y		; save to RAM
+	DEY				; decrement index/count
+	BNE	LAB_stlp		; loop if more to do
+
+; now do the signon message, Y = $00 here
+LAB_signon:
+	LDA	LAB_mess, Y		; get byte from sign on message
+	BEQ	LAB_nokey		; exit loop if done
+
+	JSR	V_OUTP		        ; output character
+	INY				; increment index
+	BNE	LAB_signon		; loop, branch always
+
+LAB_nokey:
+	JSR	V_INPT		        ; call scan input device
+	BCC	LAB_nokey		; loop if no key
+
+	AND	#$DF			; mask xx0x xxxx, ensure upper case
+	CMP	#'W'			; compare with [W]arm start
+	BEQ	LAB_dowarm		; branch if [W]arm start
+
+	CMP	#'C'			; compare with [C]old start
+	BNE	RES_vec		        ; loop if not [C]old start
+
+	JMP	LAB_COLD		; do EhBASIC cold start
+
+LAB_dowarm:
+	JMP	LAB_WARM		; do EhBASIC warm start
+
+
+
+
+
+;-------------------------------------------------------------------------------
+;       PRINT CHAR TO LCD FROM KEYBOARD INPUT
+;-------------------------------------------------------------------------------
+DISPout:
+        CMP     #LF                     ; Ignore line feed character
+        BEQ     Ignore
+WaitForReady:   ;; Originally, waits for BIT $D012 on Replica One.
+                ;; In a perfect world, we should wait on LCD status of ready.
+                ;; Ignore for now
+        ;; DRAW CHAR TO LCD SCREEN
+        JSR     WriteLCD
+Ignore:
+	RTS
+
+
+;-------------------------------------------------------------------------------
+;       GET KEYBOARD INPUT
+;-------------------------------------------------------------------------------
+KEYBin:
+        ;; GET KEYBOARD CHAR
+        JSR     kbinput                 ; Waits for ASCII key press.
+                                        ; A should now have ASCII character
+                                        ; (waits for a non-zero ASCII code)
+	SEC				; flag byte received
+	RTS
+
+
+;-------------------------------------------------------------------------------
+        ;; LOAD / SAVE ROUTINES
+;-------------------------------------------------------------------------------
+LOAD:
+SAVE:
+        ;; IGNORE FOR NOW
+        RTS
+
+
+
+        JMP     MAIN
+
+;-------------------------------------------------------------------------------
+; Print a string
+;-------------------------------------------------------------------------------
+; Pass address of string in X (low) and Y (high).
+; String must be terminated with a null.
+; Cannot be longer than 256 characters.
+; Registers changed: A, Y
+;-------------------------------------------------------------------------------
+PrintString:
+        STX     LCDpl
+        STY     LCDpl + 1
+        LDY     #0
+@loop:  LDA     (LCDpl), Y
+        BEQ     done
+        JSR     WriteLCD
+        INY
+        BNE     @loop       ; if doesn't branch, string is too long
+done:   RTS
+
+
+;-------------------------------------------------------------------------------
+;       Sends A to LCD screen at current cursor position
+;-------------------------------------------------------------------------------
+WriteLCD:
+        STA     PA
+        JSR     LCD_WRITE
+        RTS
+
+
+;-------------------------------------------------------------------------------
+;       GETLINE
+;-------------------------------------------------------------------------------
+;       NOTE: This was used in the min_mon for file loading/saving.
+;       At this time, I'm not sure where this should be used (if at all).
+;       Having the current LINE entered is certainly important.
+;       TODO: Figure out where to use this!  
+;             Perhaps when asking user a question?
+;-------------------------------------------------------------------------------
+GetLine:
+        LDX  #0                 ; Initialize index into buffer
+loop:
+        JSR  KEYBin		; Get character from keyboard
+        BCC  loop
+        CMP  #CR                ; <Enter> key pressed?
+        BEQ  EnterPressed       ; If so, handle it
+        CMP  #ESC               ; <Esc> key pressed?
+        BEQ  EscapePressed      ; If so, handle it
+        JSR  DISPout            ; Echo the key pressed
+        STA  IN+1, X            ; Store character in buffer 
+                                ;       (skip first length byte)
+        INX                     ; Advance index into buffer
+        CPX  #$7E               ; Buffer full?
+        BEQ  EnterPressed       ; If so, return as if <Enter> was pressed
+        BNE  loop               ; Always taken
+EnterPressed:
+        CLC                     ; Clear carry to indicate 
+                                ;       <Enter> pressed and fall through
+EscapePressed:
+        LDA  #0
+        STA  IN+1, X            ; Store 0 at end of buffer
+        STX  IN                 ; Store length of string
+        RTS                     ; Return
+
+
+;-------------------------------------------------------------------------------
+;       VECTOR TABLES
+;-------------------------------------------------------------------------------
+LAB_vec:
+	.word	KEYBin		; byte in from simulated ACIA
+	.word	DISPout		; byte out to simulated ACIA
+	.word	LOAD		; load vector for EhBASIC
+	.word	SAVE		; save vector for EhBASIC
+END_CODE:
+
+
+;-------------------------------------------------------------------------------
+;       MESSAGES
+;-------------------------------------------------------------------------------
+LAB_mess:
+	.byte	$0D, $0A, "EhBASIC[C]old/[W]arm", $00
+                        ; sign on string
+LINE1:
+        .byte "*  Potpourri 6502  *", $00
+LINE2:
+        .byte "EhBASIC:            ", $00
+LINE3:
+        .byte "[C]old / [W]arm?    ", $00
+LINE4:
+        .byte "Enter your choice...", $00
+
+;-------------------------------------------------------------------------------
+;       Startup Vectors
+;-------------------------------------------------------------------------------
+.segment "VECTORS"
+        .word NMI_vec           ; NMI Vector
+        .word RES_vec           ; RESET Vector
+        .word IRQ_vec           ; IRQ Vector
+
+
+;-------------------------------------------------------------------------------
+;       EOF
+;-------------------------------------------------------------------------------

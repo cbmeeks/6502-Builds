@@ -1,0 +1,6 @@
+; 6551 Chip registers
+	TXDATA		= $7F00
+	RXDATA		= $7F00
+	STATUSREG	= $7F01
+	CMDREG		= $7F02
+	CTLREG		= $7F03

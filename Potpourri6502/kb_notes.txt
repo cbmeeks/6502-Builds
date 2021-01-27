@@ -1,0 +1,35 @@
+;-------------------------------------------------------------------------------
+;       GETLINE
+;-------------------------------------------------------------------------------
+;       NOTE: This was used in the min_mon for file loading/saving.
+;       At this time, I'm not sure where this should be used (if at all).
+;       Having the current LINE entered is certainly important.
+;       TODO: Figure out where to use this!  
+;             Perhaps when asking user a question?
+;-------------------------------------------------------------------------------
+GetLine:
+        LDX  #0                 ; Initialize index into buffer
+loop:
+        JSR  KEYBin		; Get character from keyboard
+        BCC  loop
+        CMP  #CR                ; <Enter> key pressed?
+        BEQ  EnterPressed       ; If so, handle it
+        CMP  #ESC               ; <Esc> key pressed?
+        BEQ  EscapePressed      ; If so, handle it
+        JSR  DISPout            ; Echo the key pressed
+        STA  IN + 1, X          ; Store character in buffer 
+                                ;       (skip first length byte)
+        INX                     ; Advance index into buffer
+        CPX  #$7E               ; Buffer full?
+        BEQ  EnterPressed       ; If so, return as if <Enter> was pressed
+        BNE  loop               ; Always taken
+EnterPressed:
+        CLC                     ; Clear carry to indicate 
+                                ;       <Enter> pressed and fall through
+EscapePressed:
+        LDA  #0
+        STA  IN + 1, X          ; Store 0 at end of buffer
+        STX  IN                 ; Store length of string
+        RTS                     ; Return
+
+

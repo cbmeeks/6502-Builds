@@ -1,0 +1,19 @@
+                    A15 A14 A13 A12 A11 A10 A09      BASE
+                    -------------------------------------
+/SLOT3 + /AUX3       0   1   0   1   1   1   1      $5E00
+
+
+Pin             Count
+=====================
+
+/SLOT3              1
+/AUX3               1
+Data bus            8
+VGA OUT             8
+NTSC OUT            3
+A3:A0 Registers     4
+CLOCK OUT           1
+R/W                 1
+Rx/Tx               2
+SDA/SCK             2
+NMI                 1

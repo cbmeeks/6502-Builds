@@ -1,0 +1,43 @@
+RAM:    $0000 - $3FFF (16KB)
+I/O:    $4000 - $7FFF (16KB)
+VIA:    $6000 - $600F (Enabled with A13 = HIGH and /IOSEL = LOW)
+ROM:    $8000 - $FFFF (32KB)
+
+            A15 A14 A13 A12 A11 A10 A09      BASE 
+            -------------------------------------
+/IOSEL       0   1   x   x   x   x   x      $4000
+
+/SLOT0       0   1   x   0   0   x   x      $4000   
+/SLOT1       0   1   x   0   1   x   x      $4800
+/SLOT2       0   1   x   1   0   x   x      $5000
+/SLOT3       0   1   x   1   1   x   x      $5800
+
+/AUX0        0   1   x   x   x   0   0      $4000
+/AUX1        0   1   x   x   x   0   1      $4200
+/AUX2        0   1   x   x   x   1   0      $4400
+/AUX3        0   1   x   x   x   1   1      $4600
+
+
+                    A15 A14 A13 A12 A11 A10 A09      BASE
+                    -------------------------------------
+/SLOT0 + /AUX0       0   1   0   0   0   0   0      $4000
+/SLOT0 + /AUX1       0   1   0   0   0   0   1      $4200
+/SLOT0 + /AUX2       0   1   0   0   0   1   0      $4400
+/SLOT0 + /AUX3       0   1   0   0   0   1   1      $4600
+
+/SLOT1 + /AUX0       0   1   0   0   1   0   0      $4800   
+/SLOT1 + /AUX1       0   1   0   0   1   0   1      $4A00
+/SLOT1 + /AUX2       0   1   0   0   1   1   0      $4C00
+/SLOT1 + /AUX3       0   1   0   0   1   1   1      $4E00
+
+/SLOT2 + /AUX0       0   1   0   1   0   0   0      $5000   
+/SLOT2 + /AUX1       0   1   0   1   0   0   1      $5200
+/SLOT2 + /AUX2       0   1   0   1   0   1   0      $5400
+/SLOT2 + /AUX3       0   1   0   1   0   1   1      $5600
+
+/SLOT3 + /AUX0       0   1   0   1   1   0   0      $5800   
+/SLOT3 + /AUX1       0   1   0   1   1   0   1      $5A00
+/SLOT3 + /AUX2       0   1   0   1   1   1   0      $5C00
+/SLOT3 + /AUX3       0   1   0   1   1   1   1      $5E00
+
+
